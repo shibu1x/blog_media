@@ -1,0 +1,26 @@
+{
+  "name": "origin-response-function",
+  "version": "1.0.0",
+  "description": "Lambda@Edge function for origin response events",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint .",
+    "package": "zip -r function.zip index.js package.json node_modules/"
+  },
+  "keywords": [
+    "lambda",
+    "lambda-edge",
+    "cloudfront"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.910.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0"
+  },
+  "dependencies": {
+    "sharp": "^0.34.4"
+  }
+}

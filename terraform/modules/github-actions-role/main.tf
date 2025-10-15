@@ -1,0 +1,134 @@
+variable "github_org" {
+  description = "GitHub organization or username"
+  type        = string
+}
+
+variable "github_repo" {
+  description = "GitHub repository name"
+  type        = string
+}
+
+variable "role_name" {
+  description = "Name of the IAM role"
+  type        = string
+}
+
+variable "lambda_function_arns" {
+  description = "List of Lambda function ARNs that GitHub Actions can update"
+  type        = list(string)
+  default     = []
+}
+
+variable "tags" {
+  description = "Tags to apply to resources"
+  type        = map(string)
+  default     = {}
+}
+
+# GitHub Actions OIDC Provider (must exist in AWS account)
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+# IAM Role for GitHub Actions
+resource "aws_iam_role" "github_actions" {
+  name = var.role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = data.aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Policy for Lambda function updates
+resource "aws_iam_role_policy" "lambda_update" {
+  name = "lambda-update-policy"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:UpdateFunctionCode",
+          "lambda:PublishVersion",
+          "lambda:GetFunction",
+          "lambda:GetFunctionConfiguration"
+        ]
+        Resource = var.lambda_function_arns
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:ListFunctions",
+          "lambda:ListVersionsByFunction"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Optional: Policy for CloudFront cache invalidation
+resource "aws_iam_role_policy" "cloudfront_invalidation" {
+  count = var.enable_cloudfront_invalidation ? 1 : 0
+
+  name = "cloudfront-invalidation-policy"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation",
+          "cloudfront:GetInvalidation",
+          "cloudfront:ListInvalidations",
+          "cloudfront:GetDistribution"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+variable "enable_cloudfront_invalidation" {
+  description = "Enable CloudFront invalidation permissions"
+  type        = bool
+  default     = false
+}
+
+output "role_arn" {
+  description = "ARN of the GitHub Actions IAM role"
+  value       = aws_iam_role.github_actions.arn
+}
+
+output "role_name" {
+  description = "Name of the GitHub Actions IAM role"
+  value       = aws_iam_role.github_actions.name
+}
+
+output "oidc_provider_arn" {
+  description = "ARN of the GitHub OIDC provider"
+  value       = data.aws_iam_openid_connect_provider.github.arn
+}
