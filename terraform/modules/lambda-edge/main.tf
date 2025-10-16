@@ -33,6 +33,18 @@ variable "tags" {
   default     = {}
 }
 
+variable "s3_bucket_arn" {
+  description = "ARN of the S3 bucket for origin images (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "log_region" {
+  description = "AWS region where CloudWatch Logs should be created"
+  type        = string
+  default     = ""
+}
+
 # Create a minimal empty Lambda function code
 data "archive_file" "empty_lambda" {
   type        = "zip"
@@ -67,10 +79,67 @@ resource "aws_iam_role" "lambda_edge_role" {
   tags = var.tags
 }
 
-# Attach basic execution policy
-resource "aws_iam_role_policy_attachment" "lambda_edge_policy" {
-  role       = aws_iam_role.lambda_edge_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+# Custom logging policy - restrict to specific region only
+resource "aws_iam_role_policy" "lambda_edge_logging" {
+  name = "lambda-edge-logging-policy"
+  role = aws_iam_role.lambda_edge_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:${var.log_region}:*:log-group:/aws/lambda/*"
+      }
+    ]
+  })
+}
+
+# S3 access policy for origin-response function
+# Note: Policy is always created. If s3_bucket_arn is empty, permissions are still granted
+# but will be managed via S3 bucket policy in main.tf
+resource "aws_iam_role_policy" "s3_access" {
+  name = "s3-access-policy"
+  role = aws_iam_role.lambda_edge_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      var.s3_bucket_arn != "" ? [
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:GetObject"
+          ]
+          Resource = "${var.s3_bucket_arn}/origin/*"
+        },
+        {
+          Effect = "Allow"
+          Action = [
+            "s3:PutObject",
+            "s3:PutObjectAcl"
+          ]
+          Resource = "${var.s3_bucket_arn}/resize/*"
+        }
+      ] : [],
+      []
+    )
+  })
+}
+
+# CloudWatch Log Group for Lambda function
+resource "aws_cloudwatch_log_group" "lambda_log_group" {
+  provider = aws.us-east-1
+
+  name              = "/aws/lambda/${var.function_name}"
+  retention_in_days = 1
+
+  tags = var.tags
 }
 
 # Lambda function
@@ -97,6 +166,9 @@ resource "aws_lambda_function" "function" {
       source_code_hash
     ]
   }
+
+  # Ensure log group is created before Lambda function
+  depends_on = [aws_cloudwatch_log_group.lambda_log_group]
 }
 
 output "function_arn" {
@@ -117,4 +189,14 @@ output "version" {
 output "role_arn" {
   description = "ARN of the IAM role"
   value       = aws_iam_role.lambda_edge_role.arn
+}
+
+output "role_name" {
+  description = "Name of the IAM role"
+  value       = aws_iam_role.lambda_edge_role.name
+}
+
+output "function_name" {
+  description = "Name of the Lambda function"
+  value       = aws_lambda_function.function.function_name
 }
