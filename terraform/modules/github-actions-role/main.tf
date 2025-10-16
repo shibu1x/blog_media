@@ -88,11 +88,11 @@ resource "aws_iam_role_policy" "lambda_update" {
   })
 }
 
-# Optional: Policy for CloudFront cache invalidation
-resource "aws_iam_role_policy" "cloudfront_invalidation" {
-  count = var.enable_cloudfront_invalidation ? 1 : 0
+# Policy for CloudFront management
+resource "aws_iam_role_policy" "cloudfront_management" {
+  count = var.enable_cloudfront_management ? 1 : 0
 
-  name = "cloudfront-invalidation-policy"
+  name = "cloudfront-management-policy"
   role = aws_iam_role.github_actions.id
 
   policy = jsonencode({
@@ -101,10 +101,19 @@ resource "aws_iam_role_policy" "cloudfront_invalidation" {
       {
         Effect = "Allow"
         Action = [
+          "cloudfront:GetDistribution",
+          "cloudfront:GetDistributionConfig",
+          "cloudfront:ListDistributions",
+          "cloudfront:UpdateDistribution"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "cloudfront:CreateInvalidation",
           "cloudfront:GetInvalidation",
-          "cloudfront:ListInvalidations",
-          "cloudfront:GetDistribution"
+          "cloudfront:ListInvalidations"
         ]
         Resource = "*"
       }
@@ -112,8 +121,8 @@ resource "aws_iam_role_policy" "cloudfront_invalidation" {
   })
 }
 
-variable "enable_cloudfront_invalidation" {
-  description = "Enable CloudFront invalidation permissions"
+variable "enable_cloudfront_management" {
+  description = "Enable CloudFront management permissions (update distribution, invalidation)"
   type        = bool
   default     = false
 }
