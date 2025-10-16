@@ -17,7 +17,7 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
-  deploy:
+  deploy-lambda:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -40,17 +40,16 @@ jobs:
 
       - name: Install dependencies
         working-directory: ${{ matrix.function.path }}
-        run: npm ci
+        run: npm ci --omit=dev
 
-      - name: Run tests
+      - name: Replace S3 bucket placeholder
         working-directory: ${{ matrix.function.path }}
-        run: npm test || echo "No tests configured"
-        continue-on-error: true
+        run: |
+          sed -i "s/__S3_BUCKET_PLACEHOLDER__/${{ secrets.S3_BUCKET }}/g" index.mjs
 
       - name: Build function package
         working-directory: ${{ matrix.function.path }}
-        run: |
-          zip -r function.zip index.js package.json node_modules/ -x "*.test.js" -x "__tests__/*"
+        run: npm run package
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -78,6 +77,14 @@ jobs:
             --function-name ${{ steps.get-function-name.outputs.function_name }} \
             --zip-file fileb://function.zip \
             --region ${{ env.AWS_REGION }}
+
+      - name: Wait for function update to complete
+        run: |
+          echo "Waiting for Lambda function update to complete..."
+          aws lambda wait function-updated-v2 \
+            --function-name ${{ steps.get-function-name.outputs.function_name }} \
+            --region ${{ env.AWS_REGION }}
+          echo "Function update completed"
 
       - name: Publish new version
         id: publish-version
@@ -111,4 +118,4 @@ jobs:
           echo "- **Version**: ${{ steps.publish-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **ARN**: ${{ steps.get-arn.outputs.qualified_arn }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Use this ARN to attach the function to CloudFront distribution" >> $GITHUB_STEP_SUMMARY
+          echo "> To attach this version to CloudFront, run the 'Update CloudFront Distribution' workflow" >> $GITHUB_STEP_SUMMARY
