@@ -7,3 +7,9 @@ services:
     volumes:
       - ./terraform:/app:delegated
       - ../host_settings/local/air/dotfiles/aws/.aws/:/root/.aws
+  aws-cli:
+    # docker compose run --rm aws-cli
+    image: amazon/aws-cli
+    tty: true
+    volumes:
+      - ../host_settings/local/air/dotfiles/aws/.aws/:/root/.aws
