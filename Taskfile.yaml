@@ -13,7 +13,7 @@ tasks:
     desc: Initialize Terraform
     dir: terraform
     cmds:
-      - docker compose run --rm terraform init
+      - docker compose run --rm terraform init -backend-config="environments/{{.ENV}}/backend.tfvars"
 
   plan:
     desc: Check infrastructure changes
