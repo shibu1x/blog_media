@@ -72,7 +72,8 @@ resource "aws_iam_role_policy" "lambda_update" {
           "lambda:UpdateFunctionCode",
           "lambda:PublishVersion",
           "lambda:GetFunction",
-          "lambda:GetFunctionConfiguration"
+          "lambda:GetFunctionConfiguration",
+          "lambda:DeleteFunction"
         ]
         Resource = var.lambda_function_arns
       },

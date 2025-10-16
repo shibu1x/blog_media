@@ -171,6 +171,16 @@ resource "aws_lambda_function" "function" {
   depends_on = [aws_cloudwatch_log_group.lambda_log_group]
 }
 
+# Lambda permission for CloudFront to invoke and replicate the function
+resource "aws_lambda_permission" "allow_cloudfront" {
+  provider = aws.us-east-1
+
+  statement_id  = "AllowExecutionFromCloudFront"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.function.function_name
+  principal     = "edgelambda.amazonaws.com"
+}
+
 output "function_arn" {
   description = "ARN of the Lambda function"
   value       = aws_lambda_function.function.arn
