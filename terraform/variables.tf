@@ -16,14 +16,8 @@ variable "environment" {
   default     = "dev"
 }
 
-variable "github_org" {
-  description = "GitHub organization or username"
-  type        = string
-  default     = ""
-}
-
 variable "github_repo" {
-  description = "GitHub repository name"
+  description = "GitHub repository in the format 'owner/repo-name'"
   type        = string
   default     = ""
 }
