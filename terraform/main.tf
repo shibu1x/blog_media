@@ -153,7 +153,6 @@ resource "aws_s3_bucket_policy" "lambda_access" {
 module "github_actions_role" {
   source = "./modules/github-actions-role"
 
-  github_org  = var.github_org
   github_repo = var.github_repo
   role_name   = "${var.project_name}-github-actions-${var.environment}"
 
